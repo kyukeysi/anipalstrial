@@ -11,11 +11,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class GameService {
 
     private static final String DEFAULT_PLAYER_KEY = "demo-player";
+    private static final String LEGACY_UID = "ANI-4928";
     private static final long POND_COOLDOWN_SECONDS = 90;
 
     private final PlayerGameStateRepository playerRepository;
@@ -222,6 +225,7 @@ public class GameService {
     private PlayerGameState touchPlayer(String key) {
         PlayerGameState player = playerRepository.findByPlayerKey(key)
                 .orElseThrow(() -> new IllegalStateException("Player state was not initialized."));
+        ensureUniquePublicUid(player);
         player.setLastSeenAt(LocalDateTime.now());
         return player;
     }
@@ -244,6 +248,7 @@ public class GameService {
         player.setPondReadyAt(LocalDateTime.now());
         player.setTutorialState(TutorialState.INTRO);
         player.setTutorialCompleted(false);
+        player.setUid(generateUniqueUid());
         playerRepository.save(player);
 
         seedInventory(key);
@@ -319,6 +324,7 @@ public class GameService {
 
     private GameStateResponse buildState(PlayerGameState player, String status) {
         String key = player.getPlayerKey();
+        ensureUniquePublicUid(player);
         refreshFarmPlots(key);
         return new GameStateResponse(
                 new PlayerResponse(
@@ -374,6 +380,27 @@ public class GameService {
             return DEFAULT_PLAYER_KEY;
         }
         return playerKey.trim();
+    }
+
+    private void ensureUniquePublicUid(PlayerGameState player) {
+        if (
+                player.getUid() == null
+                        || player.getUid().isBlank()
+                        || LEGACY_UID.equalsIgnoreCase(player.getUid())
+                        || player.getUid().matches("^ANI-\\d{4}$")
+        ) {
+            player.setUid(generateUniqueUid());
+            playerRepository.save(player);
+        }
+    }
+
+    private String generateUniqueUid() {
+        String uid;
+        do {
+            String compact = UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+            uid = "ANI-" + compact.substring(0, 4) + "-" + compact.substring(4, 8);
+        } while (playerRepository.findByUid(uid).isPresent());
+        return uid;
     }
 
     private void refreshFarmPlots(String key) {

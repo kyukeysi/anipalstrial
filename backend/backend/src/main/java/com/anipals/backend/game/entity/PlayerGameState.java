@@ -6,7 +6,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.Random;
 
 @Entity
 @Table(name = "player_game_states")
@@ -55,8 +54,5 @@ public class PlayerGameState {
         LocalDateTime now = LocalDateTime.now();
         createdAt = now;
         lastSeenAt = now;
-        if (uid == null) {
-            uid = "ANI-" + (1000 + new Random().nextInt(9000));
-        }
     }
 }
