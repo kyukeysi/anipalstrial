@@ -1,5 +1,6 @@
 package com.anipals.backend.auth.controller;
 
+import com.anipals.backend.auth.dto.AuthResponse;
 import com.anipals.backend.auth.dto.LoginRequest;
 import com.anipals.backend.auth.dto.RegisterRequest;
 import com.anipals.backend.auth.service.AuthService;
@@ -14,12 +15,12 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/register")
-    public String register(@RequestBody RegisterRequest request) {
+    public AuthResponse register(@RequestBody RegisterRequest request) {
         return authService.register(request);
     }
 
     @PostMapping("/login")
-    public String login(@RequestBody LoginRequest request) {
+    public AuthResponse login(@RequestBody LoginRequest request) {
         return authService.login(request);
     }
 }

@@ -31,6 +31,9 @@ public class User {
     @Column(unique = true, nullable = false)
     private String uid;
 
+    @Column(unique = true)
+    private String playerKey;
+
     private boolean tutorialCompleted;
 
     private LocalDateTime createdAt;
@@ -38,6 +41,11 @@ public class User {
     @PrePersist
     public void onCreate() {
         this.createdAt = LocalDateTime.now();
-        this.uid = UUID.randomUUID().toString();
+        if (this.uid == null || this.uid.isBlank()) {
+            this.uid = UUID.randomUUID().toString();
+        }
+        if (this.playerKey == null || this.playerKey.isBlank()) {
+            this.playerKey = "player-" + UUID.randomUUID();
+        }
     }
 }
