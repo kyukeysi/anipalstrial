@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schema.railpack.com",
+  "provider": "java",
+  "packages": {
+    "java": "17"
+  },
+  "steps": {
+    "build": {
+      "commands": [
+        "chmod +x mvnw && ./mvnw -DskipTests package"
+      ]
+    }
+  },
+  "deploy": {
+    "startCommand": "java -jar target/backend-0.0.1-SNAPSHOT.jar"
+  }
+}
