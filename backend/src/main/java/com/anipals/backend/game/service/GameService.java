@@ -45,6 +45,23 @@ public class GameService {
     }
 
     @Transactional
+    public PlayerGameState createFreshPlayer(String playerKey) {
+        String key = normalizePlayerKey(playerKey);
+        playerRepository.findByPlayerKey(key).ifPresent(existing -> {
+            throw new IllegalArgumentException("Player state already exists.");
+        });
+        ensurePlayerSeeded(key);
+        return touchPlayer(key);
+    }
+
+    @Transactional
+    public PlayerGameState ensurePlayerExists(String playerKey) {
+        String key = normalizePlayerKey(playerKey);
+        ensurePlayerSeeded(key);
+        return touchPlayer(key);
+    }
+
+    @Transactional
     public GameStateResponse updatePlayerName(PlayerNameRequest request) {
         String key = normalizePlayerKey(request.playerKey());
         ensurePlayerSeeded(key);
