@@ -2,10 +2,10 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
     "builder": "RAILPACK",
-    "buildCommand": "cd backend && chmod +x mvnw && ./mvnw -DskipTests package"
+    "buildCommand": "chmod +x mvnw && ./mvnw -DskipTests package"
   },
   "deploy": {
-    "startCommand": "java -jar backend/target/backend-0.0.1-SNAPSHOT.jar",
+    "startCommand": "java -jar target/backend-0.0.1-SNAPSHOT.jar",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 3
   }

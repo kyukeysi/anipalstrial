@@ -1,13 +1,6 @@
 package com.anipals.backend.social.controller;
 
-import com.anipals.backend.social.dto.FriendActionRequest;
-import com.anipals.backend.social.dto.FriendFarmPreviewResponse;
-import com.anipals.backend.social.dto.FriendMessageRequest;
-import com.anipals.backend.social.dto.FriendMessageResponse;
-import com.anipals.backend.social.dto.FriendPlayerResponse;
-import com.anipals.backend.social.dto.FriendRequestResponse;
-import com.anipals.backend.social.dto.FriendSummaryResponse;
-import com.anipals.backend.social.dto.PlayerSearchResponse;
+import com.anipals.backend.social.dto.*;
 import com.anipals.backend.social.service.SocialService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -95,7 +88,7 @@ public class SocialController {
             @PathVariable String uid,
             @RequestParam(required = false) String playerKey
     ) {
-        return socialService.messagesFor(playerKey, uid);
+        return socialService.messagesFor(uid, playerKey);
     }
 
     @PostMapping("/messages")

@@ -2,21 +2,13 @@ package com.anipals.backend.social.service;
 
 import com.anipals.backend.game.dto.FarmPlotResponse;
 import com.anipals.backend.game.dto.PondStatusResponse;
+import com.anipals.backend.game.entity.FarmPlotState;
 import com.anipals.backend.game.entity.PlayerGameState;
 import com.anipals.backend.game.repository.FarmPlotRepository;
 import com.anipals.backend.game.repository.PlayerGameStateRepository;
-import com.anipals.backend.social.dto.FriendActionRequest;
-import com.anipals.backend.social.dto.FriendFarmPreviewResponse;
-import com.anipals.backend.social.dto.FriendMessageRequest;
-import com.anipals.backend.social.dto.FriendMessageResponse;
-import com.anipals.backend.social.dto.FriendPlayerResponse;
-import com.anipals.backend.social.dto.FriendRequestResponse;
-import com.anipals.backend.social.dto.FriendSummaryResponse;
-import com.anipals.backend.social.dto.PlayerSearchResponse;
-import com.anipals.backend.social.entity.FriendMessage;
+import com.anipals.backend.social.dto.*;
 import com.anipals.backend.social.entity.Friendship;
 import com.anipals.backend.social.entity.FriendshipStatus;
-import com.anipals.backend.social.repository.FriendMessageRepository;
 import com.anipals.backend.social.repository.FriendshipRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -26,6 +18,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Service
 public class SocialService {
@@ -34,18 +27,16 @@ public class SocialService {
 
     private final PlayerGameStateRepository playerRepository;
     private final FarmPlotRepository farmPlotRepository;
-    private final FriendMessageRepository friendMessageRepository;
     private final FriendshipRepository friendshipRepository;
+    private final List<StoredFriendMessage> messages = new CopyOnWriteArrayList<>();
 
     public SocialService(
             PlayerGameStateRepository playerRepository,
             FarmPlotRepository farmPlotRepository,
-            FriendMessageRepository friendMessageRepository,
             FriendshipRepository friendshipRepository
     ) {
         this.playerRepository = playerRepository;
         this.farmPlotRepository = farmPlotRepository;
-        this.friendMessageRepository = friendMessageRepository;
         this.friendshipRepository = friendshipRepository;
     }
 
@@ -101,7 +92,7 @@ public class SocialService {
     @Transactional
     public FriendRequestResponse sendFriendRequest(FriendActionRequest request) {
         PlayerGameState requester = requirePlayer(request.playerKey());
-        PlayerGameState recipient = requirePlayerByUid(request.targetUid());
+        PlayerGameState recipient = requirePlayerByUidOrName(request.targetUid());
         if (requester.getPlayerKey().equals(recipient.getPlayerKey())) {
             throw new IllegalArgumentException("You cannot send a friend request to yourself.");
         }
@@ -198,6 +189,7 @@ public class SocialService {
     public FriendFarmPreviewResponse previewFarm(String uid) {
         PlayerGameState player = playerRepository.findByUidIgnoreCase(uid)
                 .orElseThrow(() -> new IllegalArgumentException("Friend not found."));
+        refreshFarmPlots(player.getPlayerKey());
         List<FarmPlotResponse> plots = farmPlotRepository.findByPlayerKeyOrderByPlotIndexAsc(player.getPlayerKey()).stream()
                 .map(plot -> new FarmPlotResponse(plot.getPlotIndex(), plot.getCrop(), plot.getState().name()))
                 .toList();
@@ -212,19 +204,21 @@ public class SocialService {
         );
     }
 
-    public List<FriendMessageResponse> messagesFor(String playerKey, String friendUid) {
-        PlayerGameState player = requirePlayer(playerKey);
-        PlayerGameState friend = requirePlayerByUid(friendUid);
-        String playerUid = player.getUid();
-        String normalizedFriendUid = friend.getUid();
+    public List<FriendMessageResponse> messagesFor(String uid, String playerKey) {
+        PlayerGameState currentPlayer = requirePlayer(playerKey);
+        PlayerGameState friend = requirePlayerByUid(uid);
+        String currentKey = currentPlayer.getPlayerKey();
+        String friendKey = friend.getPlayerKey();
 
-        return friendMessageRepository.findConversation(playerUid, normalizedFriendUid)
-                .stream()
-                .map(this::messageResponse)
+        return messages.stream()
+                .filter(message ->
+                        (message.senderKey().equals(currentKey) && message.recipientKey().equals(friendKey))
+                                || (message.senderKey().equals(friendKey) && message.recipientKey().equals(currentKey))
+                )
+                .map(StoredFriendMessage::toResponse)
                 .toList();
     }
 
-    @Transactional
     public FriendMessageResponse sendMessage(FriendMessageRequest request) {
         if (request.message() == null || request.message().isBlank()) {
             throw new IllegalArgumentException("Message cannot be blank.");
@@ -232,17 +226,16 @@ public class SocialService {
         PlayerGameState sender = requirePlayer(request.senderKey());
         PlayerGameState recipient = requirePlayerByUid(request.recipientUid());
 
-        FriendMessage message = new FriendMessage();
-        message.setId(UUID.randomUUID().toString());
-        message.setSenderKey(sender.getPlayerKey());
-        message.setSenderUid(sender.getUid());
-        message.setSenderName(sender.getName());
-        message.setRecipientKey(recipient.getPlayerKey());
-        message.setRecipientUid(recipient.getUid());
-        message.setMessage(request.message().trim());
-        message.setSentAt(LocalDateTime.now());
-
-        return messageResponse(friendMessageRepository.save(message));
+        StoredFriendMessage storedMessage = new StoredFriendMessage(
+                UUID.randomUUID().toString(),
+                sender.getPlayerKey(),
+                recipient.getPlayerKey(),
+                recipient.getUid(),
+                request.message().trim(),
+                LocalDateTime.now()
+        );
+        messages.add(storedMessage);
+        return storedMessage.toResponse();
     }
 
     private String onlineStatus(LocalDateTime lastSeenAt) {
@@ -294,6 +287,27 @@ public class SocialService {
                 .orElseThrow(() -> new IllegalArgumentException("Player not found."));
     }
 
+    private PlayerGameState requirePlayerByUidOrName(String uidOrName) {
+        if (uidOrName == null || uidOrName.isBlank()) {
+            throw new IllegalArgumentException("Player UID or username is required.");
+        }
+        String query = uidOrName.trim();
+        return playerRepository.findByUidIgnoreCase(query)
+                .or(() -> playerRepository.findFirstByNameIgnoreCase(query))
+                .orElseThrow(() -> new IllegalArgumentException("Player not found."));
+    }
+
+    private void refreshFarmPlots(String key) {
+        LocalDateTime now = LocalDateTime.now();
+        farmPlotRepository.findByPlayerKeyOrderByPlotIndexAsc(key).stream()
+                .filter(plot -> plot.getState() == FarmPlotState.PLANTED)
+                .filter(plot -> plot.getReadyAt() == null || !plot.getReadyAt().isAfter(now))
+                .forEach(plot -> {
+                    plot.setState(FarmPlotState.READY);
+                    farmPlotRepository.save(plot);
+                });
+    }
+
     private Friendship requireFriendship(Long id) {
         return friendshipRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Friend request not found."));
@@ -334,18 +348,19 @@ public class SocialService {
         return new Pair(secondPlayerKey, firstPlayerKey);
     }
 
-    private FriendMessageResponse messageResponse(FriendMessage message) {
-        return new FriendMessageResponse(
-                message.getId(),
-                message.getSenderKey(),
-                message.getSenderUid(),
-                message.getSenderName(),
-                message.getRecipientUid(),
-                message.getMessage(),
-                message.getSentAt()
-        );
+    private record Pair(String playerAKey, String playerBKey) {
     }
 
-    private record Pair(String playerAKey, String playerBKey) {
+    private record StoredFriendMessage(
+            String id,
+            String senderKey,
+            String recipientKey,
+            String recipientUid,
+            String message,
+            LocalDateTime sentAt
+    ) {
+        private FriendMessageResponse toResponse() {
+            return new FriendMessageResponse(id, senderKey, recipientUid, message, sentAt);
+        }
     }
 }

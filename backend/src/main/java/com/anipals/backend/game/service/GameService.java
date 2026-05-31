@@ -6,33 +6,40 @@ import com.anipals.backend.game.repository.FarmPlotRepository;
 import com.anipals.backend.game.repository.InventoryItemRepository;
 import com.anipals.backend.game.repository.PlayerAniPalRepository;
 import com.anipals.backend.game.repository.PlayerGameStateRepository;
+import com.anipals.backend.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Locale;
+import java.util.UUID;
 
 @Service
 public class GameService {
 
     private static final String DEFAULT_PLAYER_KEY = "demo-player";
+    private static final String LEGACY_UID = "ANI-4928";
     private static final long POND_COOLDOWN_SECONDS = 90;
 
     private final PlayerGameStateRepository playerRepository;
     private final InventoryItemRepository inventoryRepository;
     private final PlayerAniPalRepository aniPalRepository;
     private final FarmPlotRepository farmPlotRepository;
+    private final UserRepository userRepository;
 
     public GameService(
             PlayerGameStateRepository playerRepository,
             InventoryItemRepository inventoryRepository,
             PlayerAniPalRepository aniPalRepository,
-            FarmPlotRepository farmPlotRepository
+            FarmPlotRepository farmPlotRepository,
+            UserRepository userRepository
     ) {
         this.playerRepository = playerRepository;
         this.inventoryRepository = inventoryRepository;
         this.aniPalRepository = aniPalRepository;
         this.farmPlotRepository = farmPlotRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -50,8 +57,7 @@ public class GameService {
         playerRepository.findByPlayerKey(key).ifPresent(existing -> {
             throw new IllegalArgumentException("Player state already exists.");
         });
-        ensurePlayerSeeded(key);
-        return touchPlayer(key);
+        return seedFreshPlayer(key);
     }
 
     @Transactional
@@ -232,6 +238,7 @@ public class GameService {
 
         player.setTutorialState(state);
         player.setTutorialCompleted(state == TutorialState.COMPLETE);
+        userRepository.findByPlayerKey(key).ifPresent(user -> user.setTutorialCompleted(player.isTutorialCompleted()));
 
         return buildState(player, "Tutorial moved to " + state + ".");
     }
@@ -239,6 +246,7 @@ public class GameService {
     private PlayerGameState touchPlayer(String key) {
         PlayerGameState player = playerRepository.findByPlayerKey(key)
                 .orElseThrow(() -> new IllegalStateException("Player state was not initialized."));
+        ensureUniquePublicUid(player);
         player.setLastSeenAt(LocalDateTime.now());
         return player;
     }
@@ -248,24 +256,33 @@ public class GameService {
             return;
         }
 
+        seedFreshPlayer(key);
+    }
+
+    private PlayerGameState seedFreshPlayer(String key) {
         PlayerGameState player = new PlayerGameState();
         player.setPlayerKey(key);
         player.setName("Mira Sprout");
         player.setFarmName("Sunberry Acres");
-        player.setLevel(18);
-        player.setCoins(12840);
-        player.setGems(3200);
-        player.setEnergy(76);
-        player.setSprouts(42);
-        player.setTickets(9);
+        player.setLevel(1);
+        player.setCoins(500);
+        player.setGems(0);
+        player.setEnergy(100);
+        player.setSprouts(0);
+        player.setTickets(1);
+        player.setSsrPity(0);
+        player.setSrPity(0);
+        player.setGuaranteedFeatured(false);
         player.setPondReadyAt(LocalDateTime.now());
         player.setTutorialState(TutorialState.INTRO);
         player.setTutorialCompleted(false);
-        playerRepository.save(player);
+        player.setUid(generateUniqueUid());
+        PlayerGameState saved = playerRepository.save(player);
 
         seedInventory(key);
         seedAniPals(key);
         seedFarmPlots(key);
+        return saved;
     }
 
     private void seedInventory(String key) {
@@ -336,6 +353,7 @@ public class GameService {
 
     private GameStateResponse buildState(PlayerGameState player, String status) {
         String key = player.getPlayerKey();
+        ensureUniquePublicUid(player);
         refreshFarmPlots(key);
         return new GameStateResponse(
                 new PlayerResponse(
@@ -391,6 +409,27 @@ public class GameService {
             return DEFAULT_PLAYER_KEY;
         }
         return playerKey.trim();
+    }
+
+    private void ensureUniquePublicUid(PlayerGameState player) {
+        if (
+                player.getUid() == null
+                        || player.getUid().isBlank()
+                        || LEGACY_UID.equalsIgnoreCase(player.getUid())
+                        || player.getUid().matches("^ANI-\\d{4}$")
+        ) {
+            player.setUid(generateUniqueUid());
+            playerRepository.save(player);
+        }
+    }
+
+    private String generateUniqueUid() {
+        String uid;
+        do {
+            String compact = UUID.randomUUID().toString().replace("-", "").toUpperCase(Locale.ROOT);
+            uid = "ANI-" + compact.substring(0, 4) + "-" + compact.substring(4, 8);
+        } while (playerRepository.findByUid(uid).isPresent());
+        return uid;
     }
 
     private void refreshFarmPlots(String key) {

@@ -1,11 +1,18 @@
 package com.anipals.backend.game.controller;
 
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.anipals.backend.game.dto.GameStateResponse;
 import com.anipals.backend.game.dto.HarvestRequest;
 import com.anipals.backend.game.dto.PlantRequest;
 import com.anipals.backend.game.dto.TutorialRequest;
 import com.anipals.backend.game.service.GameService;
-import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/game")

@@ -16,6 +16,8 @@ public interface PlayerGameStateRepository extends JpaRepository<PlayerGameState
 
     Optional<PlayerGameState> findByUidIgnoreCase(String uid);
 
+    Optional<PlayerGameState> findFirstByNameIgnoreCase(String name);
+
     @Query("""
             select p from PlayerGameState p
             where lower(p.uid) like lower(concat('%', :query, '%'))
