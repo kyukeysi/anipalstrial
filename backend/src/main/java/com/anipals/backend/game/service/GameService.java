@@ -248,20 +248,26 @@ public class GameService {
         String key = normalizePlayerKey(request.playerKey());
         ensurePlayerSeeded(key);
         PlayerGameState player = touchPlayer(key);
-        int coins = Math.max(0, Math.min(request.coins(), 500));
+        int coins = Math.max(-1000, Math.min(request.coins(), 2500));
+        if (coins < 0 && player.getCoins() + coins < 0) {
+            throw new IllegalArgumentException("Not enough coins for that bid.");
+        }
         if (coins == 0) {
-            return buildState(player, "No minigame reward earned.");
+            return buildState(player, "No minigame coins changed.");
         }
 
         player.setCoins(player.getCoins() + coins);
-        player.setSprouts(player.getSprouts() + Math.max(1, coins / 100));
+        if (coins > 0) {
+            player.setSprouts(player.getSprouts() + Math.max(1, coins / 100));
+        }
         String gameName = switch (request.gameId() == null ? "" : request.gameId()) {
             case "daily-wheel" -> "Daily Wheel";
             case "reaction-clicker" -> "Reaction Clicker";
             case "farm-trivia" -> "Farm Trivia";
             default -> "Mini-game";
         };
-        return buildState(player, gameName + " reward: +" + coins + " coins.");
+        String signedCoins = coins > 0 ? "+" + coins : String.valueOf(coins);
+        return buildState(player, gameName + " result: " + signedCoins + " coins.");
     }
 
     private PlayerGameState touchPlayer(String key) {

@@ -32,7 +32,7 @@ public class AuthService {
     public AuthResponse register(RegisterRequest request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already exists");
+            throw new IllegalArgumentException("Email already exists");
         }
 
         String playerKey = "player-" + UUID.randomUUID();
@@ -55,13 +55,13 @@ public class AuthService {
 
         User user = userRepository.findByEmail(request.getEmail().trim().toLowerCase())
                 .orElseThrow(() ->
-                        new RuntimeException("Invalid credentials"));
+                        new IllegalArgumentException("Invalid credentials"));
 
         if (!passwordEncoder.matches(
                 request.getPassword(),
                 user.getPassword()
         )) {
-            throw new RuntimeException("Invalid credentials");
+            throw new IllegalArgumentException("Invalid credentials");
         }
 
         if (user.getPlayerKey() == null || user.getPlayerKey().isBlank()) {
