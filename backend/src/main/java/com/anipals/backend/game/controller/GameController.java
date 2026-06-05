@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.anipals.backend.game.dto.GameStateResponse;
 import com.anipals.backend.game.dto.HarvestRequest;
+import com.anipals.backend.game.dto.MiniGameRewardRequest;
 import com.anipals.backend.game.dto.PlantRequest;
 import com.anipals.backend.game.dto.TutorialRequest;
 import com.anipals.backend.game.service.GameService;
@@ -56,5 +57,10 @@ public class GameController {
     @PostMapping("/tutorial")
     public GameStateResponse advanceTutorial(@RequestBody TutorialRequest request) {
         return gameService.advanceTutorial(request);
+    }
+
+    @PostMapping("/minigames/reward")
+    public GameStateResponse awardMiniGame(@RequestBody MiniGameRewardRequest request) {
+        return gameService.awardMiniGame(request);
     }
 }

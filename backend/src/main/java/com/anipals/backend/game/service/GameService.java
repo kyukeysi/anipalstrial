@@ -243,6 +243,27 @@ public class GameService {
         return buildState(player, "Tutorial moved to " + state + ".");
     }
 
+    @Transactional
+    public GameStateResponse awardMiniGame(MiniGameRewardRequest request) {
+        String key = normalizePlayerKey(request.playerKey());
+        ensurePlayerSeeded(key);
+        PlayerGameState player = touchPlayer(key);
+        int coins = Math.max(0, Math.min(request.coins(), 500));
+        if (coins == 0) {
+            return buildState(player, "No minigame reward earned.");
+        }
+
+        player.setCoins(player.getCoins() + coins);
+        player.setSprouts(player.getSprouts() + Math.max(1, coins / 100));
+        String gameName = switch (request.gameId() == null ? "" : request.gameId()) {
+            case "daily-wheel" -> "Daily Wheel";
+            case "reaction-clicker" -> "Reaction Clicker";
+            case "farm-trivia" -> "Farm Trivia";
+            default -> "Mini-game";
+        };
+        return buildState(player, gameName + " reward: +" + coins + " coins.");
+    }
+
     private PlayerGameState touchPlayer(String key) {
         PlayerGameState player = playerRepository.findByPlayerKey(key)
                 .orElseThrow(() -> new IllegalStateException("Player state was not initialized."));
